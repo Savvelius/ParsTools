@@ -10,27 +10,30 @@ template<class P>
 concept Parser = (sizeof(P) == 1) and
         std::is_default_constructible_v<P> and
         requires (str input, const MaybeItem result, MaybeItems results) {
-    { P::run(input) }   -> std::same_as<MaybeItem>;
-    { P::run(result) }  -> std::same_as<MaybeItem>;
-    { P::run(results) } -> std::same_as<MaybeItems&>;
-//    { P::get_str(input) } -> std::same_as<MaybeStr>;
+            {1 + 2} -> std::convertible_to<int>;
+//    { P::run(input) }   -> std::same_as<MaybeItem>;
+//    { P::run(result) }  -> std::same_as<MaybeItem>;
+//    { P::run(results) } -> std::same_as<MaybeItems&>;
+//    { P::get_token(input) } -> std::same_as<MaybeStr>;
 };
 
-template<char_cmp P>
+template<Token<char_cmp> T>
 struct ConditionalCharParser {
+    static constexpr Token_t token_type = T.type;
+    static constexpr char_cmp eq        = T.value;
 
     consteval ConditionalCharParser() = default;
 
     static constexpr MaybeItem run (const std::ranges::input_range auto & value) {
-        if (value.size() != 0 and P(value[0])) {
-            return Item({value[0]}, {value.begin() + 1, value.end()});
+        if (value.size() != 0 and eq(value[0])) {
+            return Item({{value[0]}, token_type}, {value.begin() + 1, value.end()});
         }
         return std::nullopt;
     }
 
-    static constexpr MaybeStr get_str (const std::ranges::input_range auto &value) {
-        if (value.size() != 0 and P(value[0])) {
-            return {{value[0]}};
+    static constexpr MaybeToken get_token (const std::ranges::input_range auto &value) {
+        if (value.size() != 0 and eq(value[0])) {
+            return {{{value[0]}, token_type}};
         }
         return std::nullopt;
     }
@@ -42,9 +45,9 @@ struct ConditionalCharParser {
     }
 
     static constexpr MaybeItems& run(MaybeItems & result) {
-        if (not (result.has_value() and get_str(result.value().rest)))  // de-morgan magic
+        if (not (result.has_value() and get_token(result.value().rest)))  // de-morgan magic
             return result;
-        result.value().found.push_back(get_str(result.value().rest).value());
+        result.value().found.push_back(get_token(result.value().rest).value());
         result.value().rest.erase(0, 1);
 
         return result;
@@ -52,57 +55,28 @@ struct ConditionalCharParser {
 };
 
 template<char C>
-struct CharParser : ConditionalCharParser<is_same_char<C>>{};
-//        {
-//
-//    consteval CharParser() = default;
-//
-//    static constexpr MaybeItem run (const std::ranges::input_range auto & value) {
-//        if (value.size() != 0 and value[0] == C) {
-//            return Item({C}, {value.begin() + 1, value.end()});
-//        }
-//        return std::nullopt;
-//    }
-//
-//    static constexpr MaybeStr get_str (const std::ranges::input_range auto &value) {
-//        if (value.size() != 0 and value[0] == C) {
-//            return {{C}};
-//        }
-//        return std::nullopt;
-//    }
-//
-//    static constexpr MaybeItem run (const MaybeItem& result) {
-//        if(not result.has_value())
-//            return std::nullopt;
-//        return run(result.value().rest);
-//    }
-//
-//    static constexpr MaybeItems& run(MaybeItems & result) {
-//        if (not (result.has_value() and get_str(result.value().rest)))  // de-morgan magic
-//            return result;
-//        result.value().found.push_back(get_str(result.value().rest).value());
-//        result.value().rest.erase(0, 1);
-//
-//        return result;
-//    }
-//};
+struct CharParser : ConditionalCharParser<Token<char_cmp>{is_same_char<C>, to_Token_t(C)}>{};
+
 
 // function shall return 0 if comparison failed, else length of compared string
-template<str_cmp eq>
+template<Token<str_cmp> T>
 struct ConditionalStrParser {
+    static constexpr Token_t token_type = T.type;
+    static constexpr str_cmp eq         = T.value;
 
     consteval ConditionalStrParser() = default;
 
     static constexpr MaybeItem run (const std::ranges::input_range auto &value) {
         if (not eq(value))
             return std::nullopt;
-        return Item({value.begin(), value.begin() + eq(value)}, {value.begin() + eq(value), value.end()});
+        return Item({{value.begin(), value.begin() + eq(value)}, token_type},
+                    {value.begin() + eq(value), value.end()});
     }
 
-    static constexpr MaybeStr get_str (const std::ranges::input_range auto &value) {
+    static constexpr MaybeToken get_token (const std::ranges::input_range auto &value) {
         if (not eq(value))
             return std::nullopt;
-        return {{value.begin(), value.begin() + eq(value)}};
+        return {{{value.begin(), value.begin() + eq(value)}, token_type}};
     }
 
     static constexpr MaybeItem run (const MaybeItem& result) {
@@ -112,10 +86,10 @@ struct ConditionalStrParser {
     }
 
     static constexpr MaybeItems& run (MaybeItems& result) {     // FIXME: Maybe is useless here
-        if (not (result.has_value() and get_str(result.value().rest)))
+        if (not (result.has_value() and get_token(result.value().rest)))
             return result;
-        auto temp = get_str(result.value().rest).value();
-        auto temp_size = temp.size();
+        auto temp = get_token(result.value().rest).value();
+        auto temp_size = temp.value.size();
 
         result.value().found.push_back(temp);
         result.value().rest.erase(0, temp_size);
@@ -125,8 +99,8 @@ struct ConditionalStrParser {
 };
 
 template<str_literal target>
-struct StrParser : public ConditionalStrParser<is_same_str<target>> {};
-static_assert(Parser<StrParser<"str">>);
+struct StrParser : public ConditionalStrParser<Token<str_cmp>{is_same_str<target>, to_Token_t(target)}> {};
+//static_assert(Parser<StrParser<Token{"str", Token_t::ws}>>);
 
 template<Parser FirstParser, Parser... Parsers>
 struct MultiParser {

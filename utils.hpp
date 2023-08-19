@@ -25,33 +25,68 @@ typedef size_t (*str_cmp)  (const str &);
 #define CHAR_CMP(func_name, var_name) constexpr bool   func_name(char       var_name)
 #define STR_CMP( func_name, var_name) constexpr size_t func_name(const str& var_name)
 
+template<size_t N>
+struct str_literal;
 
 enum class Token_t {
     ws,
     variable,
+    ch,
     string,
 };
 
+std::ostream & operator << (std::ostream &out, Token_t t);
+
+constexpr Token_t to_Token_t(char c) {  // will have a giant switch-stmt
+    using enum Token_t;
+    return ch;
+}
+
+template<size_t N>
+constexpr Token_t to_Token_t(str_literal<N> strng){  // will have a giant switch-stmt
+    using enum Token_t;
+    return string;
+}
+
 template<class T>
-        concept Cmp_or_Str = std::same_as<T, char_cmp> ||
-                             std::same_as<T, str_cmp>  ||
-                             std::same_as<T, str>;
+        concept Show = requires(std::ostream & out, T self){
+            { out << self } -> std::same_as<std::ostream &>;
+};
+
+template<class T, size_t N = 0>
+        concept Cmp_or_Str = std::same_as<T, char_cmp>   ||
+                             std::same_as<T, str_cmp>    ||
+                             std::convertible_to<T, str> ||
+                             std::same_as<T, char>;
 
 template<Cmp_or_Str T>
 struct Token {
-    const T       value;
+    T             value;
     const Token_t type;
+
+    constexpr Token(T val, Token_t typ)
+        : value{val}, type(typ) {}
 };
 
-using MaybeToken = Token<str>;
+std::ostream & operator << (std::ostream & out, const Token<char_cmp>&);
+std::ostream & operator << (std::ostream & out, const Token<str_cmp>&);
+std::ostream & operator << (std::ostream & out, const Token<char>&);
+template<class Str>
+        requires std::convertible_to<Str, str>
+std::ostream & operator << (std::ostream & out, const Token<Str>& tok) {
+    out << "Token(value = " << tok.value << ", type = " << tok.type << ")\n";
+    return out;
+}
+
+using MaybeToken = std::optional<Token<str>>;
 
 struct Items {
-    std::vector<str> found;    // std::vector<Token<str>> found;
+    std::vector<Token<str>> found;    // std::vector<Token<str>> found;
     str rest;
 };
 
 struct Item {
-    const str found;    // const Token found
+    const Token<str> found;    // const Token found
     const str rest;
 
     operator Items() const {    // must be implicit
@@ -66,11 +101,16 @@ using MaybeStr  = std::optional<str>;
 //using MaybeStrs = std::optional<std::vector<str>>;
 
 std::ostream & operator << (std::ostream & out, const Item & obj);
-std::ostream & operator << (std::ostream & out, const MaybeItem & obj);
-
 std::ostream & operator << (std::ostream & out, const Items & obj);
-std::ostream & operator << (std::ostream & out, const MaybeItems & obj);
 
+template<Show T>
+std::ostream & operator << (std::ostream & out, const std::optional<T>& obj) {
+    if(obj.has_value())
+        out << "Maybe(" << obj.value() << ")\n";
+    else
+        out << "Maybe(nothing)\n";
+    return out;
+}
 
 
 template<size_t N>

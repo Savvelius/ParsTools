@@ -17,8 +17,8 @@ using kekis = MultiParser<ws_parser,
                           bitch_parser,
                           ws_parser>;
 
-using word_parser    = MultiParser<ws_parser,
-                                ConditionalStrParser<is_word>,
+using word_parser = MultiParser<ws_parser,
+                                ConditionalStrParser<Token<str_cmp>{is_word, Token_t::string}>,
                                 ws_parser>;
 
 #endif //PARSTOOLS_PARSERS_HPP

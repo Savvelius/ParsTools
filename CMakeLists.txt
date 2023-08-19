@@ -8,4 +8,5 @@ add_executable(ParsTools
         utils.hpp
         utils.cpp
         parser_base.hpp
-        parsers.hpp)
+        parsers.hpp
+)

@@ -8,11 +8,9 @@ bool is_same(std::input_iterator auto It1,
     return true;
 }
 
+// TODO:
+//  write a shitload of ostream operators
+
 int main() {
-    str string1 = "NULL bitch + else";
-    str string2 = "  bitch  hello ";
 
-    cout << word_parser::parse_str_until_fail(string2);
-
-//    cout << big_parser::parse_str_until_fail(string);
 }
